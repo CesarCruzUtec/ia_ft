@@ -68,7 +68,7 @@ class ImageAnalyzer:
         self.yolo_model_name = None
         self.yolo_model = None
 
-    def get_points(self, model, image_name):
+    def get_boxes(self, model, image_name):
         # Load YOLO model
         self.load_model_yolo(model)
 
