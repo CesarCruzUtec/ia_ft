@@ -162,6 +162,14 @@ body {
     box-sizing: border-box;
 }
 
+.overlay-mask {
+    position: absolute;
+    object-fit: fill;
+    opacity: 1;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+}
+
 /* JSON tree */
 .json-node {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;

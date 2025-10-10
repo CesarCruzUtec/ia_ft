@@ -3,6 +3,7 @@ import gc
 import io
 import os
 
+import cv2
 import numpy as np
 import torch
 from PIL import Image
@@ -215,12 +216,34 @@ class ImageAnalyzer:
         return None
 
     def mask_to_base64(self, mask: np.ndarray) -> str:
-        # mask: 2D numpy array, 0/1 or bool
-        mask_img = (mask * 255).astype(np.uint8)
-        rgba = np.zeros((mask.shape[0], mask.shape[1], 4), dtype=np.uint8)
-        rgba[..., 0:3] = 30, 144, 255  # blue color (BGR)
-        rgba[..., 3] = (mask_img * 0.6).astype(np.uint8)  # alpha 0.6*255
-        img = Image.fromarray(rgba, mode="RGBA")
+        # mask: 2D or 3D numpy array, 0/1 or bool
+        mask = mask.astype(np.uint8)
+
+        # Handle 3D mask by taking the first channel
+        if mask.ndim == 3:
+            mask = mask[0]
+
+        h, w = mask.shape
+
+        # Create RGBA image directly as uint8 to save memory
+        mask_image = np.zeros((h, w, 4), dtype=np.uint8)
+
+        # Only set pixels where mask is True
+        mask_indices = mask > 0
+        mask_image[mask_indices, 0] = 255  # Red channel
+        mask_image[mask_indices, 1] = 30  # Green channel
+        mask_image[mask_indices, 2] = 30  # Blue channel
+        mask_image[mask_indices, 3] = 153  # Alpha channel (0.6 * 255)
+
+        # Add borders
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        # Smooth contours
+        contours = [cv2.approxPolyDP(contour, epsilon=0.01, closed=True) for contour in contours]
+        mask_image = cv2.drawContours(mask_image, contours, -1, (255, 255, 255, 204), thickness=2)
+
+        # Create PIL image
+        img = Image.fromarray(mask_image, mode="RGBA")
+
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         base64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")

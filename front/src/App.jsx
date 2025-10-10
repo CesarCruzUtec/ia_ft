@@ -21,8 +21,8 @@ export default function App() {
     const [logs, setLogs] = useState([]);
     const inputRef = useRef(null);
     const prevUrlRef = useRef(null);
-    const modelSelectId = "model-select";
-    const [model, setModel] = useState("default_model");
+    const [getModel, setGetModel] = useState("model_yolo");
+    const [analyzeModel, setAnalyzeModel] = useState("model_sam");
     const [busy, setBusy] = useState(false);
     const [fileName, setFileName] = useState(null);
     const [detections, setDetections] = useState([]);
@@ -193,6 +193,9 @@ export default function App() {
                                 <Button variant="outlined" size="small" onClick={onClear} disabled={!imageSrc || busy}>
                                     Limpiar
                                 </Button>
+                                <Button variant="outlined" size="small" onClick={() => setLogs([])} disabled={busy}>
+                                    Limpiar logs
+                                </Button>
                             </Stack>
                         </Box>
 
@@ -202,49 +205,50 @@ export default function App() {
                         <Box>
                             <Typography variant="subtitle1">2. Obtener cuadros</Typography>
                             <FormControl fullWidth size="small" sx={{ mt: 1 }}>
-                                <InputLabel id="model-select-label">Modelo</InputLabel>
+                                <InputLabel id="get-model-select-label">Modelo</InputLabel>
                                 <Select
-                                    labelId="model-select-label"
-                                    id={modelSelectId}
-                                    value={model}
+                                    labelId="get-model-select-label"
+                                    id="get-model-select"
+                                    value={getModel}
                                     label="Modelo"
-                                    onChange={e => setModel(e.target.value)}
+                                    onChange={e => setGetModel(e.target.value)}
                                 >
                                     <MenuItem value="detection_model">Detección de brotes</MenuItem>
                                     <MenuItem value="model_a">Modelo A</MenuItem>
                                     <MenuItem value="model_b">Modelo B</MenuItem>
+                                    <MenuItem value="model_c">Modelo C</MenuItem>
                                 </Select>
                             </FormControl>
-                            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                                <Button
-                                    variant="contained"
-                                    size="small"
-                                    onClick={async () => {
-                                        if (!fileName || busy) return;
-                                        setBusy(true);
-                                        addLog("info", `Llamando getBoxes con model=${model}, image_name=${fileName}`);
-                                        try {
-                                            const res = await getBoxes({ model, image_name: fileName });
-                                            // log raw response object so it can be rendered as JSON tree
-                                            addLog("debug", res);
-                                            // if backend returned an array of detections, store them so overlays render
-                                            if (Array.isArray(res)) {
-                                                setDetections(res);
-                                            } else if (res && Array.isArray(res.detections)) {
-                                                setDetections(res.detections);
-                                            }
-                                        } catch (err) {
-                                            const msg = err?.body || err.message || String(err);
-                                            addLog("error", `Error getBoxes: ${msg}`);
-                                        } finally {
-                                            setBusy(false);
+
+                            <Button
+                                variant="contained"
+                                size="small"
+                                sx={{ mt: 1 }}
+                                onClick={async () => {
+                                    if (!fileName || busy) return;
+                                    setBusy(true);
+                                    addLog("info", `Llamando getBoxes con model=${getModel}, image_name=${fileName}`);
+                                    try {
+                                        const res = await getBoxes({ model: getModel, image_name: fileName });
+                                        // log raw response object so it can be rendered as JSON tree
+                                        addLog("debug", res);
+                                        // if backend returned an array of detections, store them so overlays render
+                                        if (Array.isArray(res)) {
+                                            setDetections(res);
+                                        } else if (res && Array.isArray(res.detections)) {
+                                            setDetections(res.detections);
                                         }
-                                    }}
-                                    disabled={!imageSrc || busy}
-                                >
-                                    Obtener
-                                </Button>
-                            </Stack>
+                                    } catch (err) {
+                                        const msg = err?.body || err.message || String(err);
+                                        addLog("error", `Error getBoxes: ${msg}`);
+                                    } finally {
+                                        setBusy(false);
+                                    }
+                                }}
+                                disabled={!imageSrc || busy}
+                            >
+                                Obtener
+                            </Button>
                         </Box>
 
                         <Divider />
@@ -252,11 +256,54 @@ export default function App() {
                         {/* Section 3: Analizar (placeholder) */}
                         <Box>
                             <Typography variant="subtitle1">3. Analizar</Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                Aquí irá la UI para analizar (por ahora placeholder)
-                            </Typography>
-                            <Button variant="contained" size="small" disabled sx={{ mt: 1 }}>
-                                Analizar (pendiente)
+                            <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+                                <InputLabel id="analyze-model-select-label">Modelo</InputLabel>
+                                <Select
+                                    labelId="analyze-model-select-label"
+                                    id="analyze-model-select"
+                                    value={analyzeModel}
+                                    label="Modelo"
+                                    onChange={e => setAnalyzeModel(e.target.value)}
+                                >
+                                    <MenuItem value="sam2.1_hiera_base_plus">SAM 2.1 (Base Plus)</MenuItem>
+                                    <MenuItem value="sam2.1_hiera_large">SAM 2.1 (Large)</MenuItem>
+                                    <MenuItem value="sam2.1_hiera_small">SAM 2.1 (Small)</MenuItem>
+                                    <MenuItem value="sam2.1_hiera_tiny">SAM 2.1 (Tiny)</MenuItem>
+                                </Select>
+                            </FormControl>
+
+                            <Button
+                                variant="contained"
+                                size="small"
+                                sx={{ mt: 1 }}
+                                disabled={!imageSrc || busy || !detections || detections.length === 0}
+                                onClick={async () => {
+                                    if (!fileName || busy) return;
+                                    setBusy(true);
+                                    addLog(
+                                        "info",
+                                        `Llamando analyze con model=${analyzeModel}, image_name=${fileName}`
+                                    );
+                                    try {
+                                        const res = await (
+                                            await import("./api")
+                                        ).analyze({ model: analyzeModel, image_name: fileName, boxes: detections });
+                                        addLog("debug", res);
+                                        // if analyze returns detections with masks, replace detections
+                                        if (Array.isArray(res)) {
+                                            setDetections(res);
+                                        } else if (res && Array.isArray(res.masks)) {
+                                            setDetections(res.masks);
+                                        }
+                                    } catch (err) {
+                                        const msg = err?.body || err.message || String(err);
+                                        addLog("error", `Error analyze: ${msg}`);
+                                    } finally {
+                                        setBusy(false);
+                                    }
+                                }}
+                            >
+                                Analizar
                             </Button>
                         </Box>
 
