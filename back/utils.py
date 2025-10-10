@@ -90,10 +90,10 @@ class ImageAnalyzer:
                     {
                         "label": label,
                         "confidence": conf,
-                        "x1": float(x1),
-                        "y1": float(y1),
-                        "x2": float(x2),
-                        "y2": float(y2),
+                        "x1": int(x1),
+                        "y1": int(y1),
+                        "x2": int(x2),
+                        "y2": int(y2),
                     }
                 )
 
