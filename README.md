@@ -10,6 +10,7 @@ ia_ft/
 ├── back/             # Python backend (uv managed)
 ├── front/            # Vite frontend
 ├── images/           # Image assets (directory structure tracked, content ignored)
+├── models/           # Model files (directory structure tracked, content ignored)
 └── meta-sam2/        # SAM2 submodule (Facebook Research)
 ```
 
@@ -56,17 +57,23 @@ npm install
 
 ### 5. Running the project
 
-**Backend:**
+You need to run both services in **separate terminals**.
+
+**Terminal 1 - Backend (FastAPI):**
 ```bash
 cd back
-uv run python main.py
+uv run fastapi dev main.py
 ```
+This will start the FastAPI server on `http://localhost:8000`
+- API documentation available at: `http://localhost:8000/docs`
+- Alternative docs at: `http://localhost:8000/redoc`
 
-**Frontend:**
+**Terminal 2 - Frontend (Vite):**
 ```bash
 cd front
 npm run dev
 ```
+This will start the Vite development server (typically on `http://localhost:5173`)
 
 ## Development
 

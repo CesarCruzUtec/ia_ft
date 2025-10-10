@@ -95,3 +95,6 @@ temp/
 
 # Images folder - ignore everything inside
 images/*
+
+# Models folder - ignore everything inside
+models/*
