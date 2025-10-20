@@ -7,13 +7,6 @@
         "**/Thumbs.db": true,
         "**/__pycache__": true
     },
-    "python-envs.pythonProjects": [
-        {
-            "path": "back",
-            "envManager": "ms-python.python:venv",
-            "packageManager": "ms-python.python:pip"
-        }
-    ],
     "python.analysis.extraPaths": [
         "${workspaceFolder}/meta-sam2"
     ]

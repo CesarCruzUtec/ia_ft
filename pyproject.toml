@@ -1,0 +1,21 @@
+[project]
+name = "ia-ft"
+version = "0.1.0"
+description = "Image Analysis Pipeline with YOLO, SAM2, and ArUco"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.118.2",
+    "gradio>=4.0.0",
+    "pandas>=2.0.0",
+    "pillow>=10.0.0",
+    "psutil>=5.9.8",
+    "nvidia-ml-py>=12.0.0",
+    "sam-2",
+    "torch>=2.8.0",
+    "torchvision>=0.23.0",
+    "ultralytics>=8.3.208",
+]
+
+[tool.uv.sources]
+sam-2 = { path = "./meta-sam2", editable = true }
