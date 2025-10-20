@@ -8,13 +8,12 @@ dependencies = [
     "fastapi[standard]>=0.118.2",
     "gradio>=4.0.0",
     "pandas>=2.0.0",
-    "pillow>=10.0.0",
     "psutil>=5.9.8",
     "nvidia-ml-py>=12.0.0",
     "sam-2",
     "torch>=2.8.0",
     "torchvision>=0.23.0",
-    "ultralytics>=8.3.216",
+    "ultralytics>=8.3.218",
 ]
 
 [tool.uv.sources]

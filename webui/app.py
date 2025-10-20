@@ -1,13 +1,13 @@
 import base64
-import io
 from collections import deque
 from datetime import datetime
 from typing import Any, Dict
 
+import cv2
 import gradio as gr
+import numpy as np
 import pandas as pd
 import psutil
-from PIL import Image, ImageDraw
 
 try:
     import pynvml  # nvidia-ml-py provides the pynvml module
@@ -52,28 +52,51 @@ history_gpu_mem = deque(maxlen=MAX_HISTORY)  # GPU 0 memory %
 
 
 def decode_mask(base64_str):
-    """Decode base64 mask to PIL Image."""
+    """Decode base64 mask to numpy array (BGRA format)."""
     if "base64," in base64_str:
         base64_str = base64_str.split("base64,")[1]
     img_data = base64.b64decode(base64_str)
-    return Image.open(io.BytesIO(img_data))
+    # Decode image from bytes
+    nparr = np.frombuffer(img_data, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
+    return img
 
 
 def overlay_mask_on_image(original_img, mask_img):
-    """Overlay a semi-transparent mask on the original image."""
-    # Ensure both images are RGBA
-    if original_img.mode != "RGBA":
-        original_img = original_img.convert("RGBA")
-    if mask_img.mode != "RGBA":
-        mask_img = mask_img.convert("RGBA")
+    """Overlay a semi-transparent mask on the original image.
+
+    Args:
+        original_img: numpy array in BGR format
+        mask_img: numpy array in BGRA format
+
+    Returns:
+        numpy array in RGB format (for Gradio display)
+    """
+    # Convert BGR to BGRA if needed
+    if original_img.shape[2] == 3:
+        original_img = cv2.cvtColor(original_img, cv2.COLOR_BGR2BGRA)
+
+    # Ensure mask is BGRA
+    if mask_img.shape[2] == 3:
+        mask_img = cv2.cvtColor(mask_img, cv2.COLOR_BGR2BGRA)
 
     # Resize mask to match original image if needed
-    if mask_img.size != original_img.size:
-        mask_img = mask_img.resize(original_img.size, Image.Resampling.LANCZOS)
+    if mask_img.shape[:2] != original_img.shape[:2]:
+        mask_img = cv2.resize(
+            mask_img, (original_img.shape[1], original_img.shape[0]), interpolation=cv2.INTER_LANCZOS4
+        )
 
-    # Composite the images
-    result = Image.alpha_composite(original_img, mask_img)
-    return result.convert("RGB")
+    # Blend images using alpha channel
+    # Extract alpha channel from mask
+    alpha_mask = mask_img[:, :, 3] / 255.0
+    alpha_mask = np.expand_dims(alpha_mask, axis=2)
+
+    # Composite: result = mask * alpha + original * (1 - alpha)
+    result = (mask_img[:, :, :3] * alpha_mask + original_img[:, :, :3] * (1 - alpha_mask)).astype(np.uint8)
+
+    # Convert BGR to RGB for Gradio
+    result = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
+    return result
 
 
 def get_system_metrics() -> Dict[str, Any]:
@@ -176,8 +199,10 @@ def get_plot_data():
 def run_pipeline(image_path, yolo_model, sam2_model, marker_size_cm):
     """Run the complete pipeline and return detailed results."""
 
-    # Load original image
-    original_img = Image.open(image_path)
+    # Load original image with OpenCV
+    original_img = cv2.imread(image_path)
+    if original_img is None:
+        raise ValueError(f"Failed to load image: {image_path}")
     img_name = image_path.split("/")[-1]
 
     # Build detailed results text
@@ -249,39 +274,60 @@ def run_pipeline(image_path, yolo_model, sam2_model, marker_size_cm):
     result_text += "=" * 60 + "\n"
 
     # Create visualizations
-    # 1. Original image with bounding boxes
+    # 1. Original image with bounding boxes (convert to RGB for Gradio)
     img_with_boxes = original_img.copy()
-    draw = ImageDraw.Draw(img_with_boxes)
     for box in boxes:
-        coords = [(box["x1"], box["y1"]), (box["x2"], box["y2"])]
-        draw.rectangle(coords, outline="red", width=3)
-        draw.text((box["x1"], box["y1"] - 10), f"{box['label']} {box['confidence']:.2f}", fill="red")
+        # Draw rectangle
+        pt1 = (int(box["x1"]), int(box["y1"]))
+        pt2 = (int(box["x2"]), int(box["y2"]))
+        cv2.rectangle(img_with_boxes, pt1, pt2, color=(0, 0, 255), thickness=3)  # Red in BGR
+
+        # Draw text label
+        label = f"{box['label']} {box['confidence']:.2f}"
+        text_pos = (int(box["x1"]), int(box["y1"]) - 10)
+        cv2.putText(img_with_boxes, label, text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
+    # Convert BGR to RGB for Gradio display
+    img_with_boxes = cv2.cvtColor(img_with_boxes, cv2.COLOR_BGR2RGB)
 
     # 2. Image with mask overlay (all masks)
     img_with_mask = original_img.copy()
     if masks:
-        # Create a transparent RGBA canvas the size of the original
-        base_rgba = original_img.convert("RGBA")
-        overlay = Image.new("RGBA", base_rgba.size, (0, 0, 0, 0))
+        # Convert to BGRA for alpha compositing
+        if img_with_mask.shape[2] == 3:
+            img_with_mask = cv2.cvtColor(img_with_mask, cv2.COLOR_BGR2BGRA)
+
+        # Create overlay accumulator
+        height, width = img_with_mask.shape[:2]
+        overlay = np.zeros((height, width, 4), dtype=np.uint8)
 
         for mask in masks:
             if mask.get("mask_base64"):
                 try:
-                    mask_img = decode_mask(mask["mask_base64"])  # PIL Image
-                    # Ensure mask has alpha for compositing
-                    if mask_img.mode != "RGBA":
-                        mask_img = mask_img.convert("RGBA")
-                    # Resize mask to match original image if needed
-                    if mask_img.size != base_rgba.size:
-                        mask_img = mask_img.resize(base_rgba.size, Image.Resampling.LANCZOS)
+                    mask_img = decode_mask(mask["mask_base64"])  # numpy array BGRA
 
-                    # Composite this mask onto the overlay canvas
-                    overlay = Image.alpha_composite(overlay, mask_img)
+                    # Ensure mask is BGRA
+                    if mask_img.shape[2] == 3:
+                        mask_img = cv2.cvtColor(mask_img, cv2.COLOR_BGR2BGRA)
+
+                    # Resize mask to match original image if needed
+                    if mask_img.shape[:2] != (height, width):
+                        mask_img = cv2.resize(mask_img, (width, height), interpolation=cv2.INTER_LANCZOS4)
+
+                    # Composite this mask onto the overlay using alpha blending
+                    alpha = mask_img[:, :, 3:4] / 255.0
+                    overlay[:, :, :3] = (overlay[:, :, :3] * (1 - alpha) + mask_img[:, :, :3] * alpha).astype(np.uint8)
+                    overlay[:, :, 3] = np.maximum(overlay[:, :, 3], mask_img[:, :, 3])
+
                 except Exception as e:
                     print(f"Warning: Failed to decode/overlay mask: {e}")
 
         # Final composite of original image with combined overlay
-        img_with_mask = Image.alpha_composite(base_rgba, overlay).convert("RGB")
+        alpha = overlay[:, :, 3:4] / 255.0
+        img_with_mask[:, :, :3] = (img_with_mask[:, :, :3] * (1 - alpha) + overlay[:, :, :3] * alpha).astype(np.uint8)
+
+        # Convert to RGB for Gradio
+        img_with_mask = cv2.cvtColor(img_with_mask, cv2.COLOR_BGRA2RGB)
 
     return result_text, img_with_boxes, img_with_mask
 
@@ -407,7 +453,7 @@ def gradio_ui():
             outputs=[monitoring_active, monitor_play_btn, metrics_timer],
         )
 
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    demo.launch(server_name="localhost", server_port=7860)
 
 
 if __name__ == "__main__":

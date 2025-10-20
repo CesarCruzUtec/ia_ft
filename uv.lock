@@ -571,7 +571,6 @@ dependencies = [
     { name = "gradio" },
     { name = "nvidia-ml-py" },
     { name = "pandas" },
-    { name = "pillow" },
     { name = "psutil" },
     { name = "sam-2" },
     { name = "torch" },
@@ -585,12 +584,11 @@ requires-dist = [
     { name = "gradio", specifier = ">=4.0.0" },
     { name = "nvidia-ml-py", specifier = ">=12.0.0" },
     { name = "pandas", specifier = ">=2.0.0" },
-    { name = "pillow", specifier = ">=10.0.0" },
     { name = "psutil", specifier = ">=5.9.8" },
     { name = "sam-2", editable = "meta-sam2" },
     { name = "torch", specifier = ">=2.8.0" },
     { name = "torchvision", specifier = ">=0.23.0" },
-    { name = "ultralytics", specifier = ">=8.3.216" },
+    { name = "ultralytics", specifier = ">=8.3.218" },
 ]
 
 [[package]]

@@ -3,12 +3,11 @@ Utility functions for mask processing and conversion.
 """
 
 import base64
-import io
 
 import cv2
 import numpy as np
+
 from config import MASK_ALPHA, MASK_BORDER_COLOR, MASK_BORDER_THICKNESS, MASK_COLOR_RGB
-from PIL import Image
 
 
 def mask_to_base64(mask: np.ndarray) -> str:
@@ -52,13 +51,16 @@ def mask_to_base64(mask: np.ndarray) -> str:
         rgba_image, smoothed_contours, contourIdx=-1, color=MASK_BORDER_COLOR, thickness=MASK_BORDER_THICKNESS
     )
 
-    # Convert to PIL Image
-    pil_image = Image.fromarray(rgba_image, mode="RGBA")
+    # Encode to PNG using OpenCV
+    # cv2.imencode expects BGRA for 4-channel images, so convert RGBA to BGRA
+    bgra_image = cv2.cvtColor(rgba_image, cv2.COLOR_RGBA2BGRA)
+    success, buffer = cv2.imencode(".png", bgra_image)
 
-    # Encode to base64
-    buffer = io.BytesIO()
-    pil_image.save(buffer, format="PNG")
-    base64_bytes = base64.b64encode(buffer.getvalue())
+    if not success:
+        raise ValueError("Failed to encode mask to PNG")
+
+    # Convert to base64
+    base64_bytes = base64.b64encode(buffer)
     base64_string = base64_bytes.decode("utf-8")
 
     return f"data:image/png;base64,{base64_string}"
@@ -83,11 +85,22 @@ def base64_to_mask(mask_base64: str) -> np.ndarray:
     # Decode base64
     mask_bytes = base64.b64decode(encoded_data)
 
-    # Load as PIL image and convert to grayscale
-    pil_image = Image.open(io.BytesIO(mask_bytes)).convert("L")
+    # Decode PNG using OpenCV
+    nparr = np.frombuffer(mask_bytes, np.uint8)
+    mask_image = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
 
-    # Convert to numpy array and binarize
-    mask_array = np.array(pil_image)
+    # Convert to grayscale if needed
+    if len(mask_image.shape) == 3:
+        if mask_image.shape[2] == 4:
+            # BGRA - use alpha channel or convert to grayscale
+            mask_array = cv2.cvtColor(mask_image, cv2.COLOR_BGRA2GRAY)
+        else:
+            # BGR
+            mask_array = cv2.cvtColor(mask_image, cv2.COLOR_BGR2GRAY)
+    else:
+        mask_array = mask_image
+
+    # Binarize
     binary_mask = (mask_array > 128).astype(np.uint8)
 
     return binary_mask

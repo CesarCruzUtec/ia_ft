@@ -68,14 +68,14 @@ def compare_models_detection():
         print("⟳ Loading model...")
         model1 = YOLO(str(model1_path))
 
-        print(f"✅ Model loaded")
+        print("✅ Model loaded")
         print(f"   Class names: {model1.names}")
         print(f"   Device: {model1.device}")
 
         print("\n⟳ Running inference...")
         results1 = model1(image, verbose=False)
 
-        print(f"✅ Inference complete")
+        print("✅ Inference complete")
         print(f"   Detections: {len(results1[0].boxes)}")
 
         if len(results1[0].boxes) > 0:
@@ -104,14 +104,14 @@ def compare_models_detection():
         print("⟳ Loading model...")
         model2 = YOLO(str(model2_path))
 
-        print(f"✅ Model loaded")
+        print("✅ Model loaded")
         print(f"   Class names: {model2.names}")
         print(f"   Device: {model2.device}")
 
         print("\n⟳ Running inference...")
         results2 = model2(image, verbose=False)
 
-        print(f"✅ Inference complete")
+        print("✅ Inference complete")
         print(f"   Detections: {len(results2[0].boxes)}")
 
         if len(results2[0].boxes) > 0:

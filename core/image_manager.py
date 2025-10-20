@@ -5,8 +5,8 @@ Image manager for loading, caching, and searching images.
 from pathlib import Path
 from typing import Optional
 
+import cv2
 import numpy as np
-from PIL import Image
 
 from config import IMAGES_DIR
 
@@ -55,9 +55,7 @@ class ImageManager:
         print(f"✓ Loading image from: {image_path}")
 
         # Load and convert to RGB numpy array
-        pil_image = Image.open(image_path)
-        image_array = np.array(pil_image.convert("RGB"))
-
+        image_array = cv2.imread(str(image_path))
         print(f"✓ Image loaded - Shape: {image_array.shape}, Dtype: {image_array.dtype}")
 
         # Cache the loaded image
