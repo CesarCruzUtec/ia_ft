@@ -16,13 +16,31 @@ try:
 except Exception:
     _HAS_NVML = False
 
+from config import MODELS_DIR, SAM2_MODEL_CONFIGS
 from services.pipeline_service import PipelineService
 
 # Initialize pipeline
 pipeline = PipelineService()
 
-YOLO_MODELS = ["detection_model", "deteccion_papa_brotes_yolov11m_100epocas"]
-SAM2_MODELS = ["sam2.1_hiera_tiny", "sam2.1_hiera_small", "sam2.1_hiera_base_plus", "sam2.1_hiera_large"]
+
+def get_available_yolo_models():
+    """Scan MODELS_DIR for .pt files and return model names (without extension)."""
+    if not MODELS_DIR.exists():
+        return []
+    pt_files = list(MODELS_DIR.glob("*.pt"))
+    # Return model names without .pt extension
+    model_names = [f.stem for f in pt_files]
+    return sorted(model_names) if model_names else []
+
+
+def get_available_sam2_models():
+    """Return available SAM2 model names from config."""
+    return list(SAM2_MODEL_CONFIGS.keys())
+
+
+# Dynamically load available models
+YOLO_MODELS = get_available_yolo_models()
+SAM2_MODELS = get_available_sam2_models()
 
 # Historical data for graphs (store last 60 data points = 1 minute at 1s interval)
 MAX_HISTORY = 60
