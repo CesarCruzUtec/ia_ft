@@ -75,8 +75,12 @@ ia_ft/                               # Project root
 
 ```bash
 # Clone the repository (if not already cloned)
-git clone <your-repo-url>
+# Include submodules (SAM2) on first clone
+git clone --recurse-submodules <your-repo-url>
 cd ia_ft
+
+# If you already cloned without submodules, initialize and update:
+# git submodule update --init --recursive
 
 # Install dependencies using uv (recommended)
 uv sync
@@ -111,6 +115,10 @@ For local testing without needing to set up the full API, you can use the Gradio
 ```bash
 # Make sure dependencies are installed
 uv sync
+
+# Ensure submodule (SAM2) is pulled and checkpoints are present
+# If needed, (re)initialize submodules:
+# git submodule update --init --recursive
 
 # Run the WebUI as a module from the project root
 uv run python -m webui.app
@@ -370,11 +378,13 @@ For migration from the old structure, see [MIGRATION_GUIDE.md](./MIGRATION_GUIDE
 
 - Images are searched recursively in the `./images/` directory
 - YOLO models should be in `./models/` directory (`.pt` files)
+- SAM2 lives in `./meta-sam2` as a git submodule. If missing, run:
+  - `git submodule update --init --recursive`
 - SAM2 checkpoints should be in `./meta-sam2/checkpoints/`
 - The server auto-selects the best available device (GPU/CPU)
 - For local testing, use the Gradio WebUI in `./webui/`
 
-## �️ Project Structure
+## 🗂️ Project Structure
 
 ```
 ia_ft/                    # Project root
