@@ -24,8 +24,8 @@ This folder contains a Gradio-based interface for testing the image analysis pip
 ## Features
 
 - 📤 **Upload Images:** Upload an image directly from your browser
-- 🎯 **YOLO Detection:** Select from available YOLO models
-- ✂️ **SAM2 Segmentation:** Choose SAM2 model for precise segmentation
+- 🎯 **YOLO Detection:** Automatically discovers and lists all `.pt` models in `models/` directory
+- ✂️ **SAM2 Segmentation:** Dynamically loads available SAM2 models from `config.py`
 - 📏 **ArUco Measurement:** Specify ArUco marker size for real-world measurements
 - 🖼️ **Visual Results:** View detection bounding boxes and segmentation mask overlays
 - 📊 **Detailed Results:** See step-by-step pipeline output with all metrics
@@ -33,6 +33,21 @@ This folder contains a Gradio-based interface for testing the image analysis pip
   - Updates every second
   - Shows CPU percentage, RAM usage, and GPU metrics (memory, utilization, temperature)
   - NVIDIA GPU support via `nvidia-ml-py`
+
+## Model Discovery
+
+The WebUI automatically discovers available models:
+
+- **YOLO Models:** Scans `models/` directory for `.pt` files
+  - Add new YOLO models by placing `.pt` files in the `models/` folder
+  - Model names are derived from filenames (without `.pt` extension)
+  - Example: `my_custom_model.pt` → appears as `my_custom_model` in dropdown
+
+- **SAM2 Models:** Reads from `config.py` `SAM2_MODEL_CONFIGS`
+  - Currently available: tiny, small, base_plus, large
+  - To add custom SAM2 models, edit `config.py`
+
+The dropdowns show how many models were found (e.g., "2 model(s) found").
 
 ---
 

@@ -264,6 +264,12 @@ def run_pipeline(image_path, yolo_model, sam2_model, marker_size_cm):
 
 
 def gradio_ui():
+    # Validate that models are available
+    if not YOLO_MODELS:
+        print("⚠️  Warning: No YOLO models found in models/ directory. Add .pt files to continue.")
+    if not SAM2_MODELS:
+        print("⚠️  Warning: No SAM2 models configured. Check config.py SAM2_MODEL_CONFIGS.")
+
     with gr.Blocks(title="Image Analysis Pipeline (Local)", theme=gr.themes.Base()) as demo:
         gr.Markdown("# 🥔 Image Analysis Pipeline - Local Gradio UI")
         gr.Markdown("Upload an image, select models, and run detection, segmentation, and measurement.")
@@ -271,8 +277,18 @@ def gradio_ui():
         with gr.Row():
             with gr.Column(scale=1):
                 image_input = gr.Image(type="filepath", label="📤 Upload Image")
-                yolo_model = gr.Dropdown(YOLO_MODELS, value=YOLO_MODELS[0], label="🎯 YOLO Model")
-                sam2_model = gr.Dropdown(SAM2_MODELS, value=SAM2_MODELS[0], label="✂️ SAM2 Model")
+                yolo_model = gr.Dropdown(
+                    YOLO_MODELS,
+                    value=YOLO_MODELS[0] if YOLO_MODELS else None,
+                    label="🎯 YOLO Model",
+                    info=f"{len(YOLO_MODELS)} model(s) found",
+                )
+                sam2_model = gr.Dropdown(
+                    SAM2_MODELS,
+                    value=SAM2_MODELS[0] if SAM2_MODELS else None,
+                    label="✂️ SAM2 Model",
+                    info=f"{len(SAM2_MODELS)} model(s) available",
+                )
                 marker_size = gr.Number(value=4.9, label="📏 ArUco Marker Size (cm)")
                 run_btn = gr.Button("▶️ Run Pipeline", variant="primary", size="lg")
 
