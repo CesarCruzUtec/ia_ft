@@ -143,6 +143,8 @@ class ImageAnalyzer:
 
         return {"masks": boxes}
 
+    def measure(self, image_name, boxes): ...
+
     def load_model(self, model_name):
         if self.model_name == model_name:
             print(f"Modelo {model_name} ya cargado.")
@@ -248,3 +250,17 @@ class ImageAnalyzer:
         img.save(buffer, format="PNG")
         base64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
         return f"data:image/png;base64,{base64_str}"
+
+    def base64_to_mask(self, mask_base64: str) -> np.ndarray:
+        # Decode base64 string
+        _, encoded = mask_base64.split(",", 1)
+        mask_data = base64.b64decode(encoded)
+
+        # Load image from bytes
+        mask_image = Image.open(io.BytesIO(mask_data)).convert("L")  # Convert to grayscale
+
+        # Convert to numpy array and binarize
+        mask_array = np.array(mask_image)
+        binary_mask = (mask_array > 128).astype(np.uint8)  # Thresholding
+
+        return binary_mask
