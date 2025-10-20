@@ -57,7 +57,11 @@ class ArucoMeasurer:
         _, marker_ids = self.aruco_detector.detect_markers_in_image(image)
 
         if marker_ids is None or len(marker_ids) == 0:
-            raise ValueError("No ArUco markers detected in image. Cannot calculate scale.")
+            # Do not raise here — return gracefully so the pipeline can continue
+            # and the UI can show a friendly message. We return no measured
+            # boxes, zero markers detected, and a scale of 0.0 (px/cm).
+            print("⚠️ No ArUco markers detected in image. Skipping measurement.")
+            return [], 0, 0.0
 
         markers_count = len(marker_ids)
         print(f"✓ Found {markers_count} ArUco marker(s): {marker_ids.flatten().tolist()}")

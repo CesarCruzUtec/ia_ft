@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
-from config import SAM2_CHECKPOINTS_DIR, SAM2_CONFIG_DIR, SAM2_MODEL_CONFIGS
-from core import DeviceManager
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 
+from config import SAM2_CHECKPOINTS_DIR, SAM2_CONFIG_DIR, SAM2_MODEL_CONFIGS
+from core import DeviceManager
 from modules.segmentation.mask_utils import mask_to_base64
 from modules.segmentation.models import SegmentationBox
 
@@ -133,7 +133,21 @@ class SAM2Segmentor:
         # Create SegmentationBox objects with masks
         segmented_boxes = []
         for i, (mask, score) in enumerate(zip(masks, scores)):
-            print(f"  Mask {i + 1}/{len(masks)}: score = {score:.4f}")
+            # score may be a numpy scalar/array; ensure it's a Python float for
+            # formatting and storage
+            try:
+                score_val = float(score)
+            except Exception:
+                # Fallback: convert via numpy.item() if available
+                try:
+                    if hasattr(score, 'item'):
+                        score_val = float(score.item())
+                    else:
+                        score_val = float(score)
+                except Exception:
+                    score_val = 0.0
+
+            print(f"  Mask {i + 1}/{len(masks)}: score = {score_val:.4f}")
 
             # Convert mask to base64
             mask_base64_str = mask_to_base64(mask)
@@ -148,7 +162,7 @@ class SAM2Segmentor:
                     x2=boxes[i]["x2"],
                     y2=boxes[i]["y2"],
                     mask_base64=mask_base64_str,
-                    mask_score=float(score),
+                    mask_score=score_val,
                 )
             )
 

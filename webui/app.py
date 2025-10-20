@@ -226,7 +226,10 @@ def run_pipeline(image_path, yolo_model, sam2_model, marker_size_cm):
     measurements = [m.model_dump() for m in measured]
 
     result_text += f"ArUco markers detected: {markers_count}\n"
-    result_text += f"Scale: {scale:.2f} px/cm\n"
+    if markers_count == 0 or not scale:
+        result_text += "Scale: No ArUco markers detected — measurement skipped.\n"
+    else:
+        result_text += f"Scale: {scale:.2f} px/cm\n"
     result_text += f"Marker size: {marker_size_cm} cm\n"
     result_text += f"Objects measured: {len(measurements)}\n\n"
 
@@ -254,11 +257,31 @@ def run_pipeline(image_path, yolo_model, sam2_model, marker_size_cm):
         draw.rectangle(coords, outline="red", width=3)
         draw.text((box["x1"], box["y1"] - 10), f"{box['label']} {box['confidence']:.2f}", fill="red")
 
-    # 2. Image with mask overlay (first object)
+    # 2. Image with mask overlay (all masks)
     img_with_mask = original_img.copy()
-    if masks and masks[0].get("mask_base64"):
-        mask_img = decode_mask(masks[0]["mask_base64"])
-        img_with_mask = overlay_mask_on_image(original_img, mask_img)
+    if masks:
+        # Create a transparent RGBA canvas the size of the original
+        base_rgba = original_img.convert("RGBA")
+        overlay = Image.new("RGBA", base_rgba.size, (0, 0, 0, 0))
+
+        for mask in masks:
+            if mask.get("mask_base64"):
+                try:
+                    mask_img = decode_mask(mask["mask_base64"])  # PIL Image
+                    # Ensure mask has alpha for compositing
+                    if mask_img.mode != "RGBA":
+                        mask_img = mask_img.convert("RGBA")
+                    # Resize mask to match original image if needed
+                    if mask_img.size != base_rgba.size:
+                        mask_img = mask_img.resize(base_rgba.size, Image.Resampling.LANCZOS)
+
+                    # Composite this mask onto the overlay canvas
+                    overlay = Image.alpha_composite(overlay, mask_img)
+                except Exception as e:
+                    print(f"Warning: Failed to decode/overlay mask: {e}")
+
+        # Final composite of original image with combined overlay
+        img_with_mask = Image.alpha_composite(base_rgba, overlay).convert("RGB")
 
     return result_text, img_with_boxes, img_with_mask
 

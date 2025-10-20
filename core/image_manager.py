@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from config import IMAGES_DIR
 from PIL import Image
+
+from config import IMAGES_DIR
 
 
 class ImageManager:
@@ -75,7 +76,25 @@ class ImageManager:
         Returns:
             Full path to the image file, or None if not found
         """
-        for path in self.images_directory.rglob(image_name):
+        # If user provided an absolute path, validate and return it directly
+        candidate = Path(image_name)
+        if candidate.is_absolute():
+            if candidate.is_file():
+                return candidate
+            return None
+
+        # If the image_name contains path parts (subdirectories), try resolving
+        # it relative to the images directory first. This handles inputs like
+        # 'mayor/brotes/img.jpg' or 'mayor\\brotes\\img.jpg'.
+        if len(candidate.parts) > 1:
+            rel_candidate = self.images_directory.joinpath(*candidate.parts)
+            if rel_candidate.is_file():
+                return rel_candidate
+
+        # Fallback: search recursively by basename to avoid passing absolute
+        # or non-relative patterns to rglob on Windows.
+        basename = candidate.name
+        for path in self.images_directory.rglob(basename):
             if path.is_file():
                 return path
         return None
