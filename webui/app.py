@@ -197,7 +197,16 @@ def get_plot_data():
 
 
 def run_pipeline(image_path, yolo_model, sam2_model, marker_size_cm):
-    """Run the complete pipeline and return detailed results."""
+    """Run the complete pipeline and return structured results.
+
+    Returns:
+        summary_md (str): Markdown summary text
+        det_df (pd.DataFrame): Detection results table
+        seg_df (pd.DataFrame): Segmentation results table
+        meas_df (pd.DataFrame): Measurement results table
+        img_with_boxes (np.ndarray RGB): Image with detection boxes
+        img_with_mask (np.ndarray RGB): Image with combined mask overlay
+    """
 
     # Load original image with OpenCV
     original_img = cv2.imread(image_path)
@@ -205,43 +214,15 @@ def run_pipeline(image_path, yolo_model, sam2_model, marker_size_cm):
         raise ValueError(f"Failed to load image: {image_path}")
     img_name = image_path.split("/")[-1]
 
-    # Build detailed results text
-    result_text = "=" * 60 + "\n"
-    result_text += "PIPELINE EXECUTION RESULTS\n"
-    result_text += "=" * 60 + "\n\n"
-
     # Step 1: Detection
-    result_text += "STEP 1: OBJECT DETECTION (YOLO)\n"
-    result_text += "-" * 60 + "\n"
     detections = pipeline.detect_objects(model_name=yolo_model, image_name=img_name)
     boxes = [d.model_dump() for d in detections]
 
-    result_text += f"Model: {yolo_model}\n"
-    result_text += f"Objects detected: {len(boxes)}\n\n"
-
-    for i, box in enumerate(boxes, 1):
-        result_text += f"  Object {i}:\n"
-        result_text += f"    - Label: {box['label']}\n"
-        result_text += f"    - Confidence: {box['confidence']:.2%}\n"
-        result_text += f"    - BBox: ({box['x1']}, {box['y1']}) → ({box['x2']}, {box['y2']})\n\n"
-
     # Step 2: Segmentation
-    result_text += "\nSTEP 2: SEGMENTATION (SAM2)\n"
-    result_text += "-" * 60 + "\n"
     segmented = pipeline.segment_objects(model_name=sam2_model, image_name=img_name, boxes=boxes)
     masks = [s.model_dump() for s in segmented]
 
-    result_text += f"Model: {sam2_model}\n"
-    result_text += f"Masks generated: {len(masks)}\n\n"
-
-    for i, mask in enumerate(masks, 1):
-        result_text += f"  Mask {i}:\n"
-        result_text += f"    - Label: {mask['label']}\n"
-        result_text += f"    - Mask score: {mask.get('mask_score', 0):.2%}\n\n"
-
     # Step 3: Measurement
-    result_text += "\nSTEP 3: MEASUREMENT (ArUco)\n"
-    result_text += "-" * 60 + "\n"
     measured, markers_count, scale = pipeline.measure_objects(
         image_name=img_name,
         boxes=masks,
@@ -250,28 +231,67 @@ def run_pipeline(image_path, yolo_model, sam2_model, marker_size_cm):
     )
     measurements = [m.model_dump() for m in measured]
 
-    result_text += f"ArUco markers detected: {markers_count}\n"
-    if markers_count == 0 or not scale:
-        result_text += "Scale: No ArUco markers detected — measurement skipped.\n"
-    else:
-        result_text += f"Scale: {scale:.2f} px/cm\n"
-    result_text += f"Marker size: {marker_size_cm} cm\n"
-    result_text += f"Objects measured: {len(measurements)}\n\n"
+    # Build tables (DataFrames)
+    det_rows = [
+        {
+            "Label": b["label"],
+            "Confidence": round(float(b.get("confidence", 0.0)), 3),
+            "x1": int(b.get("x1", 0)),
+            "y1": int(b.get("y1", 0)),
+            "x2": int(b.get("x2", 0)),
+            "y2": int(b.get("y2", 0)),
+        }
+        for b in boxes
+    ]
+    det_df = (
+        pd.DataFrame(det_rows, columns=["Label", "Confidence", "x1", "y1", "x2", "y2"])
+        if det_rows
+        else pd.DataFrame(columns=["Label", "Confidence", "x1", "y1", "x2", "y2"])
+    )
 
-    for i, meas in enumerate(measurements, 1):
-        result_text += f"  Measurement {i} ({meas['label']}):\n"
-        if meas.get("area_cm2"):
-            result_text += f"    - Area: {meas['area_cm2']:.2f} cm²\n"
-            result_text += f"    - Perimeter: {meas['perimeter_cm']:.2f} cm\n"
-            result_text += f"    - Width: {meas['width_cm']:.2f} cm\n"
-            result_text += f"    - Height: {meas['height_cm']:.2f} cm\n"
-            result_text += f"    - Angle: {meas['angle']:.2f}°\n\n"
-        else:
-            result_text += "    - No measurements available (no ArUco markers detected)\n\n"
+    seg_rows = [
+        {
+            "Label": m.get("label", ""),
+            "Mask score": round(float(m.get("mask_score", 0.0)), 3),
+        }
+        for m in masks
+    ]
+    seg_df = (
+        pd.DataFrame(seg_rows, columns=["Label", "Mask score"])
+        if seg_rows
+        else pd.DataFrame(columns=["Label", "Mask score"])
+    )
 
-    result_text += "=" * 60 + "\n"
-    result_text += "PIPELINE COMPLETED SUCCESSFULLY\n"
-    result_text += "=" * 60 + "\n"
+    meas_cols = ["Label", "Area (cm^2)", "Perimeter (cm)", "Width (cm)", "Height (cm)", "Angle (deg)"]
+    meas_rows = []
+    for meas in measurements:
+        meas_rows.append(
+            {
+                "Label": meas.get("label", ""),
+                "Area (cm^2)": round(float(meas.get("area_cm2", 0.0)), 2) if meas.get("area_cm2") else None,
+                "Perimeter (cm)": round(float(meas.get("perimeter_cm", 0.0)), 2) if meas.get("perimeter_cm") else None,
+                "Width (cm)": round(float(meas.get("width_cm", 0.0)), 2) if meas.get("width_cm") else None,
+                "Height (cm)": round(float(meas.get("height_cm", 0.0)), 2) if meas.get("height_cm") else None,
+                "Angle (deg)": round(float(meas.get("angle", 0.0)), 2) if meas.get("angle") is not None else None,
+            }
+        )
+    meas_df = pd.DataFrame(meas_rows, columns=meas_cols) if meas_rows else pd.DataFrame(columns=meas_cols)
+
+    # Summary markdown
+    scale_text = (
+        "No ArUco markers detected — measurement skipped."
+        if (markers_count == 0 or not scale)
+        else f"{scale:.2f} px/cm"
+    )
+    summary_md = (
+        f"### Pipeline Summary\n\n"
+        f"- Image: `{img_name}`\n"
+        f"- YOLO Model: `{yolo_model}` — Detections: **{len(boxes)}**\n"
+        f"- SAM2 Model: `{sam2_model}` — Masks: **{len(masks)}**\n"
+        f"- ArUco markers: **{markers_count}**\n"
+        f"- Scale: **{scale_text}**\n"
+        f"- Marker size: **{marker_size_cm} cm**\n"
+    )
 
     # Create visualizations
     # 1. Original image with bounding boxes (convert to RGB for Gradio)
@@ -329,7 +349,7 @@ def run_pipeline(image_path, yolo_model, sam2_model, marker_size_cm):
         # Convert to RGB for Gradio
         img_with_mask = cv2.cvtColor(img_with_mask, cv2.COLOR_BGRA2RGB)
 
-    return result_text, img_with_boxes, img_with_mask
+    return summary_md, det_df, seg_df, meas_df, img_with_boxes, img_with_mask
 
 
 def gradio_ui():
@@ -364,13 +384,17 @@ def gradio_ui():
             with gr.Column(scale=2):
                 with gr.Tabs():
                     with gr.Tab("📊 Pipeline Results"):
-                        result_text = gr.Textbox(label="Detailed Output", lines=20, max_lines=40, show_copy_button=True)
+                        summary_md = gr.Markdown()
+                        with gr.Row():
+                            det_df_comp = gr.Dataframe(interactive=False, wrap=True, label="Detections")
+                            seg_df_comp = gr.Dataframe(interactive=False, wrap=True, label="Segmentations")
+                        meas_df_comp = gr.Dataframe(interactive=False, wrap=True, label="Measurements")
 
                     with gr.Tab("🎯 Detection"):
-                        img_with_boxes = gr.Image(label="Bounding Boxes", type="pil")
+                        img_with_boxes = gr.Image(label="Bounding Boxes", type="numpy")
 
                     with gr.Tab("🎨 Segmentation"):
-                        img_with_mask = gr.Image(label="Mask Overlay", type="pil")
+                        img_with_mask = gr.Image(label="Mask Overlay", type="numpy")
 
                     with gr.Tab("🖥️ System Monitor"):
                         with gr.Row():
@@ -412,21 +436,45 @@ def gradio_ui():
 
         def on_run(image_path, yolo, sam2, marker):
             if not image_path:
-                return "❌ No image uploaded.", None, None, 0, 0, {}, None, None
+                return (
+                    "❌ No image uploaded.",
+                    pd.DataFrame(),
+                    pd.DataFrame(),
+                    pd.DataFrame(),
+                    None,
+                    None,
+                    0,
+                    0,
+                    {},
+                    None,
+                    None,
+                )
             # Run the pipeline
-            result_text, img_boxes, img_mask = run_pipeline(image_path, yolo, sam2, marker)
+            summary_md, det_df, seg_df, meas_df, img_boxes, img_mask = run_pipeline(image_path, yolo, sam2, marker)
             # Get current system metrics
             metrics = get_system_metrics()
             update_history(metrics)
             cpu = float(metrics.get("cpu_percent", 0))
             ram = float(metrics.get("ram_percent", 0))
             cpu_ram_df, gpu_df = get_plot_data()
-            return result_text, img_boxes, img_mask, cpu, ram, metrics, cpu_ram_df, gpu_df
+            return summary_md, det_df, seg_df, meas_df, img_boxes, img_mask, cpu, ram, metrics, cpu_ram_df, gpu_df
 
         run_btn.click(
             on_run,
             inputs=[image_input, yolo_model, sam2_model, marker_size],
-            outputs=[result_text, img_with_boxes, img_with_mask, sys_cpu, sys_ram, sys_info, cpu_ram_plot, gpu_plot],
+            outputs=[
+                summary_md,
+                det_df_comp,
+                seg_df_comp,
+                meas_df_comp,
+                img_with_boxes,
+                img_with_mask,
+                sys_cpu,
+                sys_ram,
+                sys_info,
+                cpu_ram_plot,
+                gpu_plot,
+            ],
         )
 
         # Live system metrics updater
