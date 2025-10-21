@@ -212,19 +212,18 @@ def run_pipeline(image_path, yolo_model, sam2_model, marker_size_cm):
     original_img = cv2.imread(image_path)
     if original_img is None:
         raise ValueError(f"Failed to load image: {image_path}")
-    img_name = image_path.split("/")[-1]
 
     # Step 1: Detection
-    detections = pipeline.detect_objects(model_name=yolo_model, image_name=img_name)
+    detections = pipeline.detect_objects(model_name=yolo_model, image_name=image_path)
     boxes = [d.model_dump() for d in detections]
 
     # Step 2: Segmentation
-    segmented = pipeline.segment_objects(model_name=sam2_model, image_name=img_name, boxes=boxes)
+    segmented = pipeline.segment_objects(model_name=sam2_model, image_name=image_path, boxes=boxes)
     masks = [s.model_dump() for s in segmented]
 
     # Step 3: Measurement
     measured, markers_count, scale = pipeline.measure_objects(
-        image_name=img_name,
+        image_name=image_path,
         boxes=masks,
         marker_size_cm=marker_size_cm,
         marker_id=None,
@@ -285,7 +284,7 @@ def run_pipeline(image_path, yolo_model, sam2_model, marker_size_cm):
     )
     summary_md = (
         f"### Pipeline Summary\n\n"
-        f"- Image: `{img_name}`\n"
+        f"- Image: `{image_path}`\n"
         f"- YOLO Model: `{yolo_model}` — Detections: **{len(boxes)}**\n"
         f"- SAM2 Model: `{sam2_model}` — Masks: **{len(masks)}**\n"
         f"- ArUco markers: **{markers_count}**\n"

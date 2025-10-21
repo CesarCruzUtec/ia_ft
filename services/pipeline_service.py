@@ -137,7 +137,7 @@ class PipelineService:
         """Get current status of the pipeline."""
         return {
             "device": str(self.device_manager.device),
-            "current_image": self.image_manager.get_current_image_name(),
+            "current_image": self.image_manager.get_current_image_source(),
             "yolo_model": self.yolo_detector.get_current_model_name(),
             "sam2_model": self.sam2_segmentor.get_current_model_name(),
         }

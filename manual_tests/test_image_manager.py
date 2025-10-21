@@ -50,8 +50,8 @@ def main():
 
         # Test caching
         print("\n4. Testing image cache...")
-        current_name = image_manager.get_current_image_name()
-        print(f"  - Cached image name: {current_name}")
+        current_source = image_manager.get_current_image_source()
+        print(f"  - Cached image source: {current_source}")
         print(f"  - Is cached: {image_manager.is_image_cached(image_path)}")
 
         # Load again (should use cache)
