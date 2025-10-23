@@ -90,3 +90,5 @@ images/*
 models/*
 # Keep placeholder so folder exists in repo
 !models/.gitkeep
+
+*/datasets
