@@ -1,10 +1,69 @@
 from pathlib import Path
 
 import gradio as gr
-from extra import get_dataset_names
+from PIL import Image
 
 DS_DIR = Path(__file__).parent / "datasets"
 DS_DIR.mkdir(exist_ok=True)
+ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif"}
+
+
+def get_dataset_images(dataset_name: str):
+    dataset_path = DS_DIR / dataset_name
+    if not dataset_path.exists():
+        return []
+
+    originals_path = dataset_path / "originals"
+    image_paths = list(originals_path.glob("*"))
+
+    # Filter images by allowed extensions
+    image_paths = [(p, p.name) for p in image_paths if p.suffix in ALLOWED_IMAGE_EXTENSIONS]
+
+    return image_paths
+
+
+def get_dataset_summary(dataset_name: str):
+    dataset_path = DS_DIR / dataset_name
+    if not dataset_path.exists():
+        return f"Dataset **{dataset_name}** does not exist."
+
+    originals_path = dataset_path / "originals"
+
+    total_files = list(originals_path.glob("*"))
+    image_paths = [p for p in total_files if p.suffix in ALLOWED_IMAGE_EXTENSIONS]
+    num_originals = len(image_paths)
+
+    # Create summary in markdown format
+    summary_msg = "# Dataset Summary\n"
+    summary_msg += "## Original Images\n"
+    summary_msg += f"- Total: {len(image_paths)}\n"
+    summary_msg += f"- Allowed: {num_originals}\n"
+
+    return summary_msg
+
+
+def _get_image_metadata(image_path: Path):
+    temp_img = Image.open(image_path)
+    width, height = temp_img.size
+    img_format = temp_img.format
+    img_size = image_path.stat().st_size
+    temp_img.close()
+
+    return f"""
+    - Format: {img_format}
+    - Dimensions: {width}x{height}
+    - Size: {img_size} bytes
+    """
+
+
+# ============================== Handlers ==============================
+
+
+def get_dataset_names():
+    datasets = [d.name for d in DS_DIR.iterdir() if d.is_dir()]
+    datasets.sort()
+
+    return datasets
 
 
 def create_dataset(name):
@@ -20,35 +79,37 @@ def create_dataset(name):
     (dataset_path / "data.yaml").write_text("train: images/train\nval: images/val\ntest: images/test\n")
     (dataset_path / "README.md").write_text(f"# {name}\n\nThis is the README for the {name} dataset.")
 
-    return f"Dataset {name} created successfully.", get_dataset_names()
+    dropdown_update = gr.update(choices=get_dataset_names())
+
+    return dropdown_update
 
 
 def refresh_dataset(name):
     # Search for the dataset and refresh its contents or metadata
     dataset_path = DS_DIR / name
     if not dataset_path.exists():
-        return f"Dataset {name} does not exist."
+        return f"Dataset **{name}** does not exist."
 
-    # Count images in originals folder
-    originals_path = dataset_path / "originals"
-    num_originals = len(list(originals_path.glob("*")))
-    return f"Dataset {name} refreshed successfully. Found {num_originals} original images."
+    # Results
+    summary_msg = get_dataset_summary(name)
+    gallery_update = get_dataset_images(name)
+
+    return summary_msg, gallery_update
 
 
-def load_dataset(name):
+def select_image(name, evt: gr.SelectData):
     dataset_path = DS_DIR / name
     if not dataset_path.exists():
-        return f"Dataset {name} does not exist.", None
+        return f"Dataset **{name}** does not exist."
 
-    # Load dataset information
-    readme_path = dataset_path / "README.md"
-    if readme_path.exists():
-        info = readme_path.read_text()
-    else:
-        info = f"No README found for dataset {name}."
+    image_caption = evt.value["caption"]
+    selected_image_path = dataset_path / "originals" / image_caption
 
-    # Prepare dataset preview (this is a placeholder, actual implementation may vary)
-    originals_path = dataset_path / "originals"
-    image_paths = list(originals_path.glob("*"))
+    if not selected_image_path.exists():
+        return f"Image **{image_caption}** does not exist in dataset **{name}** or has been deleted."
 
-    return info, gr.Dataset(samples=[[str(p)] for p in image_paths])
+    # Here you can add more details about the image if needed
+    summary_msg = f"# Selected Image\n- Path: {selected_image_path}"
+    summary_msg += _get_image_metadata(selected_image_path)
+
+    return summary_msg
